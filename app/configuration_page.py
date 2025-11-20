@@ -24,9 +24,9 @@ from coscientist.global_state import CoscientistState
 def get_llm_options():
     """Get available LLM options for the chat interface."""
     return {
-        "o3": ChatOpenAI(model="o3", max_tokens=5000, max_retries=3),
-        "Gemini 2.5 Pro": ChatGoogleGenerativeAI(
-            model="gemini-2.5-pro",
+        "o1": ChatOpenAI(model="o1", max_tokens=5000, max_retries=3),
+        "Gemini 2.0 Flash": ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
             temperature=1.0,
             max_retries=3,
             max_tokens=5000,
@@ -202,10 +202,21 @@ def display_configuration_page():
 
             # Handle coscientist execution
             if st.session_state.coscientist_running:
-                with st.spinner("🔬 Coscientist is running in the background..."):
-                    # Give it a moment before the first check
-                    time.sleep(5)
-                    st.rerun()  # Rerun to check status
+                # Auto-refresh every 10 seconds while running
+                import time
+                
+                status_placeholder = st.empty()
+                progress_placeholder = st.empty()
+                
+                with status_placeholder:
+                    st.info("🔬 Coscientist is running in the background...")
+                
+                with progress_placeholder:
+                    st.caption("Auto-refreshing every 10 seconds...")
+                    
+                # Use st.empty() to create a container that can be updated
+                time.sleep(2)  # Brief pause before rerun
+                st.rerun()
 
             # Check status if it was running
             if (
@@ -241,11 +252,9 @@ def display_configuration_page():
                     st.rerun()
 
                 elif status == "running" and st.session_state.coscientist_running:
-                    st.info(
-                        "Coscientist is running. Feel free to navigate away or check back later."
-                    )
-                    if st.button("Refresh Status"):
-                        st.rerun()
+                    # Show a progress indicator
+                    with st.spinner("Coscientist is processing..."):
+                        st.caption("The research is ongoing. Page will auto-refresh.")
 
             # Display error if it occurred
             if st.session_state.coscientist_error:

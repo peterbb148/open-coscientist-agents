@@ -31,31 +31,35 @@ from coscientist.supervisor_agent import build_supervisor_agent
 
 # Generally reasoning models are better suited for the scientific reasoning
 # tasks entailed by the Coscientist system.
-_SMARTER_LLM_POOL = {
-    "o3": ChatOpenAI(model="o3", max_tokens=50_000, max_retries=3),
-    "gemini-2.5-pro": ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro",
-        temperature=1.0,
-        max_retries=3,
-        max_tokens=50_000,
-    ),
-    "claude-sonnet-4-20250514": ChatAnthropic(
-        model="claude-sonnet-4-20250514", max_tokens=50_000, max_retries=3
-    ),
-}
-_CHEAPER_LLM_POOL = {
-    "o4-mini": ChatOpenAI(model="o4-mini", max_tokens=50_000, max_retries=3),
-    "gemini-2.5-flash": ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=1.0,
-        max_retries=3,
-        max_tokens=50_000,
-    ),
-    # Anthropic doesn't have a good cheaper model
-    "claude-sonnet-4-20250514": ChatAnthropic(
-        model="claude-sonnet-4-20250514", max_tokens=50_000, max_retries=3
-    ),
-}
+def _get_smarter_llm_pool():
+    """Lazy-load smarter LLM pool to avoid initialization at import time."""
+    return {
+        "o1": ChatOpenAI(model="o1", max_tokens=50_000, max_retries=3),
+        "gemini-2.0-flash": ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=1.0,
+            max_retries=3,
+            max_tokens=50_000,
+        ),
+        "claude-sonnet-4-20250514": ChatAnthropic(
+            model="claude-sonnet-4-20250514", max_tokens=50_000, max_retries=3
+        ),
+    }
+
+def _get_cheaper_llm_pool():
+    """Lazy-load cheaper LLM pool to avoid initialization at import time."""
+    return {
+        "gpt-4o-mini": ChatOpenAI(model="gpt-4o-mini", max_tokens=50_000, max_retries=3),
+        "gemini-2.0-flash": ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            temperature=1.0,
+            max_retries=3,
+            max_tokens=50_000,
+        ),
+        "claude-3-5-haiku-20241022": ChatAnthropic(
+            model="claude-3-5-haiku-20241022", max_tokens=50_000, max_retries=3
+        ),
+    }
 
 
 class CoscientistConfig:
@@ -89,33 +93,30 @@ class CoscientistConfig:
 
     def __init__(
         self,
-        literature_review_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
-        generation_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        reflection_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        evolution_agent_llms: dict[str, BaseChatModel] = _SMARTER_LLM_POOL,
-        meta_review_agent_llm: BaseChatModel = _CHEAPER_LLM_POOL["gemini-2.5-flash"],
-        supervisor_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
-        final_report_agent_llm: BaseChatModel = _SMARTER_LLM_POOL[
-            "claude-sonnet-4-20250514"
-        ],
+        literature_review_agent_llm: BaseChatModel | None = None,
+        generation_agent_llms: dict[str, BaseChatModel] | None = None,
+        reflection_agent_llms: dict[str, BaseChatModel] | None = None,
+        evolution_agent_llms: dict[str, BaseChatModel] | None = None,
+        meta_review_agent_llm: BaseChatModel | None = None,
+        supervisor_agent_llm: BaseChatModel | None = None,
+        final_report_agent_llm: BaseChatModel | None = None,
         proximity_agent_embedding_model: Embeddings = OpenAIEmbeddings(
             model="text-embedding-3-small", dimensions=256
         ),
         specialist_fields: list[str] | None = None,
     ):
         # TODO: Add functionality for overriding GPTResearcher config.
-        self.literature_review_agent_llm = literature_review_agent_llm
-        self.generation_agent_llms = generation_agent_llms
-        self.reflection_agent_llms = reflection_agent_llms
-        self.evolution_agent_llms = evolution_agent_llms
-        self.meta_review_agent_llm = meta_review_agent_llm
-        self.supervisor_agent_llm = supervisor_agent_llm
+        smarter_pool = _get_smarter_llm_pool()
+        cheaper_pool = _get_cheaper_llm_pool()
+        
+        self.literature_review_agent_llm = literature_review_agent_llm or smarter_pool["o1"]
+        self.generation_agent_llms = generation_agent_llms or smarter_pool
+        self.reflection_agent_llms = reflection_agent_llms or smarter_pool
+        self.evolution_agent_llms = evolution_agent_llms or smarter_pool
+        self.meta_review_agent_llm = meta_review_agent_llm or cheaper_pool["gpt-4o-mini"]
+        self.supervisor_agent_llm = supervisor_agent_llm or smarter_pool["o1"]
+        self.final_report_agent_llm = final_report_agent_llm or smarter_pool["o1"]
         self.proximity_agent_embedding_model = proximity_agent_embedding_model
-        self.final_report_agent_llm = final_report_agent_llm
         if specialist_fields is None:
             self.specialist_fields = ["biology"]
         else:

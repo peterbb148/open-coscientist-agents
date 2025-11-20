@@ -46,7 +46,9 @@ def parse_topic_decomposition(markdown_text: str) -> list[str]:
     """
     # Split by subtopic headers (### Subtopic N)
     sections = re.split(r"### Subtopic \d+", markdown_text)
-    return [section.strip() for section in sections[1:]]
+    # Filter out empty sections and ensure we have valid strings
+    subtopics = [section.strip() for section in sections[1:] if section and section.strip()]
+    return subtopics
 
 
 def _topic_decomposition_node(
@@ -63,13 +65,22 @@ def _topic_decomposition_node(
         subtopics=state.get("subtopics", ""),
         meta_review=state.get("meta_review", ""),
     )
-    response_content = llm.invoke(prompt).content
+    
+    try:
+        response = llm.invoke(prompt)
+        response_content = response.content
+        
+        if not response_content:
+            raise ValueError(f"LLM returned empty response. Response object: {response}")
+            
+    except Exception as e:
+        raise RuntimeError(f"Failed to get LLM response for topic decomposition: {str(e)}")
 
     # Parse the topics from the markdown response
     subtopics = parse_topic_decomposition(response_content)
 
     if not subtopics:
-        raise ValueError("Failed to parse any topics from decomposition response")
+        raise ValueError(f"Failed to parse any topics from decomposition response. Response was: {response_content[:500]}")
 
     if state.get("subtopics", False):
         subtopics = state["subtopics"] + subtopics
@@ -118,8 +129,14 @@ async def _parallel_research_node(
     subtopics = state["subtopics"]
     main_goal = state["goal"]
 
-    # Create research tasks for all subtopics
-    research_tasks = [_write_subtopic_report(topic, main_goal) for topic in subtopics]
+    # Filter out any None or empty subtopics
+    valid_subtopics = [topic for topic in subtopics if topic and isinstance(topic, str) and topic.strip()]
+    
+    if not valid_subtopics:
+        raise ValueError("No valid subtopics to research")
+
+    # Create research tasks for all valid subtopics
+    research_tasks = [_write_subtopic_report(topic, main_goal) for topic in valid_subtopics]
 
     # Execute all research tasks in parallel
     try:
